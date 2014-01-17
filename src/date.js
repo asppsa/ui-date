@@ -21,6 +21,17 @@ angular.module('ui.date', [])
       var getOptions = function () {
         return angular.extend({}, uiDateConfig, scope.$eval(attrs.uiDate));
       };
+
+      // This function assumes that the most up-to-date version of the
+      // date is always in the input.  To make it into a date we have to parse it.
+      var getDate = function () {
+        try {
+          return jQuery.datepicker.parseDate(element.datepicker('option', 'dateFormat'), element.val());
+        }
+        catch (e) {
+          return null;
+        }
+      }
       var initDateWidget = function () {
         var showing = false;
         var opts = getOptions();
@@ -34,9 +45,9 @@ angular.module('ui.date', [])
           opts.onSelect = function (value, picker) {
             scope.$apply(function() {
               showing = true;
-              controller.$setViewValue(element.datepicker("getDate"));
+              controller.$setViewValue(getDate());
               _onSelect(value, picker);
-              element.blur();
+              //element.blur();
             });
           };
           opts.beforeShow = function() {
@@ -45,11 +56,16 @@ angular.module('ui.date', [])
           opts.onClose = function(value, picker) {
             showing = false;
           };
-          element.on('blur', function() {
+          element.on('blur keyup input', function() {
             if ( !showing ) {
               scope.$apply(function() {
-                element.datepicker("setDate", element.datepicker("getDate"));
-                controller.$setViewValue(element.datepicker("getDate"));
+                element.datepicker("setDate", getDate());
+                controller.$setViewValue(getDate());
+              });
+            }
+            else {
+              scope.$apply(function() {
+                controller.$setViewValue(getDate());
               });
             }
           });
@@ -96,7 +112,12 @@ angular.module('ui.date', [])
         });
         modelCtrl.$parsers.push(function(value){
           if (value) {
-            return jQuery.datepicker.formatDate(dateFormat, value);
+            try {
+              return jQuery.datepicker.formatDate(dateFormat, value);
+            }
+            catch (e) {
+              return null;
+            }
           }
           return null;
         });
