@@ -12,12 +12,11 @@ angular.module('ui.date', [])
 
 .directive('uiDate', ['uiDateConfig', function (uiDateConfig) {
   'use strict';
-  var options;
-  options = {};
-  angular.extend(options, uiDateConfig);
   return {
     require:'?ngModel',
     link:function (scope, element, attrs, controller) {
+
+      // This is the options structure
       var getOptions = function () {
         return angular.extend({}, uiDateConfig, scope.$eval(attrs.uiDate));
       };
@@ -32,64 +31,95 @@ angular.module('ui.date', [])
           return null;
         }
       }
-      var initDateWidget = function () {
+
+      // This initialises or updates the widget
+      var updateDateWidget = function () {
         var showing = false;
         var opts = getOptions();
 
-        // If we have a controller (i.e. ngModelController) then wire it up
-        if (controller) {
+        // If this is the first time, attach the event handlers
+        if (!element.hasClass("hasDatepicker")) {
+          if (controller) {
 
-          // Set the view value in a $apply block when users selects
-          // (calling directive user's function too if provided)
-          var _onSelect = opts.onSelect || angular.noop;
-          opts.onSelect = function (value, picker) {
-            scope.$apply(function() {
+            // Set the view value in a $apply block when users selects
+            // (calling directive user's function too if provided).
+            opts.onSelect = function (value, picker) {
+              scope.$apply(function() {
+
+                // The widget is always visible at this stage.
+                showing = true;
+
+                // Update the view
+                controller.$setViewValue(getDate());
+
+                // Check to see if there is an original 'onSelect'
+                // option (i.e. set by the user), and call if there is.
+                var options = getOptions();
+                if ('onSelect' in options) {
+                  options['onSelect'](value, picker);
+                }
+              });
+            };
+
+            // Track showing
+            opts.beforeShow = function() {
               showing = true;
-              controller.$setViewValue(getDate());
-              _onSelect(value, picker);
-              //element.blur();
-            });
-          };
-          opts.beforeShow = function() {
-            showing = true;
-          };
-          opts.onClose = function(value, picker) {
-            showing = false;
-          };
-          element.on('blur keyup input', function() {
-            if ( !showing ) {
-              scope.$apply(function() {
-                element.datepicker("setDate", getDate());
-                controller.$setViewValue(getDate());
-              });
-            }
-            else {
-              scope.$apply(function() {
-                controller.$setViewValue(getDate());
-              });
-            }
-          });
+            };
+            opts.onClose = function(value, picker) {
+              showing = false;
+            };
 
-          // Update the date picker when the model changes
-          controller.$render = function () {
-            var date = controller.$viewValue;
-            if ( angular.isDefined(date) && date !== null && !angular.isDate(date) ) {
-              throw new Error('ng-Model value must be a Date object - currently it is a ' + typeof date + ' - use ui-date-format to convert it from a string');
-            }
-            element.datepicker("setDate", date);
-          };
+            // Update the date picker when the model changes
+            controller.$render = function () {
+              var date = controller.$viewValue;
+              if ( angular.isDefined(date) && date !== null && !angular.isDate(date) ) {
+                throw new Error('ng-Model value must be a Date object - currently it is a ' + typeof date + ' - use ui-date-format to convert it from a string');
+              }
+              element.datepicker("setDate", date);
+            };
+
+            element.on('blur keyup input', function() {
+              if (!showing) {
+                scope.$apply(function() {
+                  element.datepicker("setDate", getDate());
+                  controller.$setViewValue(getDate());
+                });
+              }
+              else {
+                scope.$apply(function() {
+                  controller.$setViewValue(getDate());
+                });
+              }
+            });
+          }
+
+          // Create the new datepicker widget
+          element.datepicker(opts);
         }
-        // If we don't destroy the old one it doesn't update properly when the config changes
-        element.datepicker('destroy');
-        // Create the new datepicker widget
-        element.datepicker(opts);
+        else {
+          var oldOpts = element.datepicker('option'),
+              key = null;
+
+          // Insert nulls into the options structure for any options
+          // that were previously set but aren't anymore.
+          for (key in oldOpts) {
+            if (!(key in opts)) {
+              opts[key] = null;
+            }
+          }
+
+          // Update options
+          element.datepicker('option', opts);
+        }
+
         if ( controller ) {
           // Force a render to override whatever is in the input text box
           controller.$render();
         }
       };
+
       // Watch for changes to the directives options
-      scope.$watch(getOptions, initDateWidget, true);
+      scope.$watch(getOptions, updateDateWidget, true);
     }
   };
 }
